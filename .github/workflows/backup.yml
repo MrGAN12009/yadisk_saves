@@ -38,6 +38,8 @@ jobs:
           else
             echo "No new commits today. Skipping backup."
             echo "SHOULD_BACKUP=false" >> $GITHUB_ENV
+          fi
+            
 
       - name: Skip backup if no new commits
         if: env.SHOULD_BACKUP == 'false'
