@@ -1,15 +1,17 @@
 import requests
 import json
 
-
 # Ваш OAuth-токен, полученный через Yandex OAuth
-TOKEN = 'y0__wgBEPnemqsHGPSPNCD3s9HvEdqo44Fydx9WW0KNSk1vOv3PCmhJ'
+TOKEN = ''
 
 # Базовый URL для API Яндекс.Диска
 BASE_URL = 'https://cloud-api.yandex.net/v1/disk/resources'
 UPLOAD_URL = f'{BASE_URL}/upload'
 
-headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': f'OAuth {TOKEN}'}
+headers = {
+    'Authorization': f'OAuth {TOKEN}'
+}
+
 
 def create_folder(folder_path):
     """Создаёт папку на Яндекс.Диске"""
@@ -19,8 +21,9 @@ def create_folder(folder_path):
     else:
         print(f'Ошибка создания папки {folder_path}: {response.status_code} {response.text}')
 
+
 def upload_file_from_url(file_url, remote_path):
-    """Загружает файл на Яндекс.Диск напрямую с URL"""
+    """Загружает файл из URL напрямую на Яндекс.Диск"""
     # Получаем URL для загрузки на Яндекс.Диск
     params = {'path': remote_path, 'overwrite': 'true'}
     response = requests.get(UPLOAD_URL, headers=headers, params=params)
@@ -31,19 +34,23 @@ def upload_file_from_url(file_url, remote_path):
             print('Не удалось получить ссылку для загрузки файла.')
             return False
 
-        # Скачиваем файл и сразу передаём его в запрос на загрузку
-        with requests.get(file_url, stream=True) as file_response:
-            if file_response.status_code == 200:
-                upload_response = requests.put(upload_url, data=file_response.raw)
-                if upload_response.status_code == 201:
-                    print('Файл успешно загружен на Яндекс.Диск.')
-                    return True
-                else:
-                    print(f'Ошибка загрузки файла: {upload_response.status_code} {upload_response.text}')
-                    return False
+        # Потоковая загрузка файла из URL на Яндекс.Диск
+        file_stream = requests.get(file_url, stream=True)
+        if file_stream.status_code == 200:
+            upload_response = requests.put(
+                upload_url,
+                data=file_stream.iter_content(chunk_size=1024),
+                headers={'Content-Type': 'application/octet-stream'}  # Указываем тип контента
+            )
+            if upload_response.status_code == 201:
+                print('Файл успешно загружен на Яндекс.Диск.')
+                return True
             else:
-                print(f'Ошибка скачивания файла: {file_response.status_code} {file_response.text}')
+                print(f'Ошибка загрузки файла: {upload_response.status_code} {upload_response.text}')
                 return False
+        else:
+            print(f'Ошибка загрузки файла из URL: {file_stream.status_code} {file_stream.text}')
+            return False
     elif response.status_code == 409:
         print(f'Путь {remote_path} не существует.')
         folder_path = remote_path.rsplit('/', 1)[0]  # Извлекаем путь к папке
@@ -53,18 +60,14 @@ def upload_file_from_url(file_url, remote_path):
         print(f'Ошибка получения URL для загрузки: {response.status_code} {response.text}')
         return False
 
+
+# Основной вызов
+# params = {"file_path" : "https://files.salebot.pro/uploads/message_files/2643cf62625f3555284d45e955753e2758ed1f01872862d1d4365e6dd59d0dd2.jpg",
+# 'dir' : '/'}
 def handle(params):
     """Обрабатывает параметры и загружает файл на Яндекс.Диск"""
     data = json.loads(params)
-    file_url = data['dir']  # URL изображения
-    remote_file_path = data['file_path']
-    r = upload_file_from_url(data['file_path'], f"disk:{data['dir']}{data['file_path'].split('.')[-2][:10]}.{data['file_path'].split('.')[-1]}")
-    return json.dumps({'res': r})
+    local_file_path = data['file_path']
 
-
-# params = {
-#     'dir':"testDir",
-#     'file_path':"test.txt",
-#     'username':"user"
-# }
-
+    result = upload_file_from_url(local_file_path, f"disk:{data['dir']}{local_file_path.split('.')[-2][-5:]}{local_file_path.split('.')[-1]}")
+    return json.dumps({'res': result})
