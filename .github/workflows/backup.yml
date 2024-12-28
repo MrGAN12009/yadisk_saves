@@ -51,7 +51,7 @@ jobs:
         run: |
           echo "Creating backup branch"
           TIMESTAMP=$(TZ="Europe/Istanbul" date +"%Y-%m-%d")
-          BRANCH_NAME="backup-$TIMESTAMP-yadisk"
+          BRANCH_NAME="backup-$TIMESTAMP-videotest"
           echo "Branch name: $BRANCH_NAME"
           git checkout -b $BRANCH_NAME
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
