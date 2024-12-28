@@ -1,9 +1,11 @@
 name: Backup Repository
 
 on:
+  schedule:  # Автозапуск в полночь
+    - cron: '0 0 * * *'
   push:  # Запускать workflow после каждого коммита
     branches:
-      - main  # Укажите ветки, для которых должно срабатывать событие
+      - main
   workflow_dispatch:
 
 jobs:
@@ -24,28 +26,49 @@ jobs:
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
 
+      - name: Check if there are new commits today
+        id: check_commits
+        run: |
+          echo "Checking for new commits today"
+          TODAY=$(TZ="Europe/Istanbul" date +"%Y-%m-%d")
+          LAST_COMMIT_DATE=$(git log -1 --format=%ci | cut -d' ' -f1)
+          if [[ "$TODAY" == "$LAST_COMMIT_DATE" ]]; then
+            echo "New commits found today."
+            echo "SHOULD_BACKUP=true" >> $GITHUB_ENV
+          else
+            echo "No new commits today. Skipping backup."
+            echo "SHOULD_BACKUP=false" >> $GITHUB_ENV
+
+      - name: Skip backup if no new commits
+        if: env.SHOULD_BACKUP == 'false'
+        run: echo "Skipping backup as there are no new commits today."
+
       - name: Create backup branch
+        if: env.SHOULD_BACKUP == 'true'
         id: create_branch
         run: |
           echo "Creating backup branch"
-          TIMESTAMP=$(TZ="Europe/Istanbul" date +"%Y-%m-%d-%H-%M")
+          TIMESTAMP=$(TZ="Europe/Istanbul" date +"%Y-%m-%d")
           BRANCH_NAME="backup-$TIMESTAMP-yadisk"
           echo "Branch name: $BRANCH_NAME"
           git checkout -b $BRANCH_NAME
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Add backup remote
+        if: env.SHOULD_BACKUP == 'true'
         run: |
           echo "Adding remote backup repository"
           git remote add backup https://${{ secrets.TARGET_REPO_TOKEN }}@github.com/StanislavProg/Tehspec_Daniil
           git remote -v  # List remotes to verify
 
       - name: Pull changes from backup repository
+        if: env.SHOULD_BACKUP == 'true'
         run: |
           echo "Pulling changes from backup repository"
           git pull backup main --rebase || echo "No changes to pull"
 
       - name: Push to backup repository
+        if: env.SHOULD_BACKUP == 'true'
         run: |
           echo "Pushing to remote repository"
           git push backup ${{ env.BRANCH_NAME }} --force
